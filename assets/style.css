@@ -100,8 +100,6 @@ details .ans { color: var(--soft); padding: 0 0 22px; max-width: 40em; }
 .doc p, .doc li { color: var(--soft); }
 .doc ul, .doc ol { padding-left: 1.2em; }
 .doc strong { color: var(--ink); }
-.draft { border: 2px dashed var(--accent); padding: 12px 16px; margin: 22px 0 0; font-size: 15px; color: var(--ink); background: var(--bg2); }
-.confirm { background: rgba(217, 156, 0, .22); padding: 0 4px; border-radius: 3px; color: var(--ink); }
 .contact-box { margin-top: 26px; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 22px 0; font-size: 22px; }
 
 /* footer */
