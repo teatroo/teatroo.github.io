@@ -110,3 +110,13 @@ details .ans { color: var(--soft); padding: 0 0 22px; max-width: 40em; }
 .foot nav a { text-decoration: none; color: var(--soft); font-size: 16px; } .foot nav a:hover { color: var(--ink); }
 .foot .small { color: var(--soft); font-size: 14px; margin: 0; }
 .foot .tools { margin-left: 0; margin-top: 10px; }
+
+/* password page (reset-password.html) */
+.pwform { max-width: 26em; margin-top: 18px; }
+.pwform label { display: block; margin: 18px 0 6px; font-weight: 600; font-size: 15px; }
+.pwform input { width: 100%; font: inherit; font-size: 18px; padding: 12px 14px; color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 8px; }
+.pwform input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.pwform .hint { font-size: 14px; color: var(--soft); margin: 8px 0 0; }
+.pwform .err { font-size: 15px; color: var(--accent); margin: 14px 0 0; font-weight: 600; }
+.pwform .btn { margin-top: 22px; font: inherit; font-size: 16px; font-weight: 700; padding: 13px 26px; color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 8px; cursor: pointer; }
+.pwform .btn:disabled { opacity: .6; cursor: default; }
