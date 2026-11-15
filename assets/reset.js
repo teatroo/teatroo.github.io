@@ -1,11 +1,11 @@
 /* Teatroo: the page that opens from the link in the e-mails of the account (new password, confirm e-mail).
-   It talks only to the Google sign-in service (Identity Toolkit) with the browser key of reset-config.js: no other script, no cookies,
-   no statistics. The one-time code is read from the address and removed from it at once. Texts: 6 languages, set with textContent only. */
+   It talks only to our own account mail service (the address is in reset-config.js, generated from website_src/site_settings.json): no key is
+   published on the page, no other script, no cookies, no statistics. The service passes the code and the new password to Google; nothing is
+   stored. The one-time code is read from the address and removed from it at once. Texts: 6 languages, set with textContent only. */
 (function (root) {
   'use strict';
 
   var LANGS = ['en', 'ru', 'de', 'fr', 'es', 'it'];
-  var HOST = 'https://identitytoolkit.googleapis.com/v1/accounts:';
 
   var T = {
     en: {
@@ -19,6 +19,7 @@
       err_expired: 'This link has expired. Ask for a new link in the app (Sign in, then Forgot password?).',
       err_network: 'No connection. Check your internet and try again.',
       err_other: 'Something went wrong. Please try again, or ask for a new link in the app.',
+      err_rate: 'Too many attempts. Please wait a few minutes and try again.',
       err_unsupported: 'This link cannot be used here.'
     },
     ru: {
@@ -35,6 +36,7 @@
       err_expired: 'Срок действия ссылки истёк. Запросите новую в приложении (Вход, затем «Забыли пароль?»).',
       err_network: 'Нет соединения. Проверьте интернет и попробуйте ещё раз.',
       err_other: 'Что-то пошло не так. Попробуйте ещё раз или запросите новую ссылку в приложении.',
+      err_rate: '\u0421\u043b\u0438\u0448\u043a\u043e\u043c \u043c\u043d\u043e\u0433\u043e \u043f\u043e\u043f\u044b\u0442\u043e\u043a. \u041f\u043e\u0434\u043e\u0436\u0434\u0438\u0442\u0435 \u043d\u0435\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u043c\u0438\u043d\u0443\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0441\u043d\u043e\u0432\u0430.',
       err_unsupported: 'Эту ссылку здесь использовать нельзя.'
     },
     de: {
@@ -48,6 +50,7 @@
       err_expired: 'Dieser Link ist abgelaufen. Fordere in der App einen neuen an (Anmelden, dann Passwort vergessen?).',
       err_network: 'Keine Verbindung. Prüfe dein Internet und versuche es noch einmal.',
       err_other: 'Etwas ist schiefgelaufen. Versuche es noch einmal oder fordere in der App einen neuen Link an.',
+      err_rate: 'Zu viele Versuche. Bitte warte ein paar Minuten und versuche es erneut.',
       err_unsupported: 'Dieser Link kann hier nicht verwendet werden.'
     },
     fr: {
@@ -61,6 +64,7 @@
       err_expired: 'Ce lien a expiré. Demandez-en un nouveau dans l’application (Connexion, puis Mot de passe oublié ?).',
       err_network: 'Pas de connexion. Vérifiez votre internet et réessayez.',
       err_other: 'Une erreur s’est produite. Réessayez ou demandez un nouveau lien dans l’application.',
+      err_rate: 'Trop de tentatives. Patientez quelques minutes puis r\xe9essayez.',
       err_unsupported: 'Ce lien ne peut pas être utilisé ici.'
     },
     es: {
@@ -74,6 +78,7 @@
       err_expired: 'Este enlace ha caducado. Pide uno nuevo en la app (Iniciar sesión y luego ¿Olvidaste la contraseña?).',
       err_network: 'Sin conexión. Revisa tu internet e inténtalo de nuevo.',
       err_other: 'Algo salió mal. Inténtalo de nuevo o pide un enlace nuevo en la app.',
+      err_rate: 'Demasiados intentos. Espera unos minutos e int\xe9ntalo de nuevo.',
       err_unsupported: 'Este enlace no se puede usar aquí.'
     },
     it: {
@@ -87,6 +92,7 @@
       err_expired: 'Questo link è scaduto. Chiedine uno nuovo nell’app (Accedi, poi Password dimenticata?).',
       err_network: 'Nessuna connessione. Controlla internet e riprova.',
       err_other: 'Qualcosa è andato storto. Riprova o chiedi un nuovo link nell’app.',
+      err_rate: 'Troppi tentativi. Attendi qualche minuto e riprova.',
       err_unsupported: 'Questo link non può essere usato qui.'
     }
   };
@@ -121,30 +127,32 @@
     return typeof pw === 'string' && pw.length >= 8 && /\p{Lu}/u.test(pw) && /\p{Ll}/u.test(pw) && /\d/.test(pw);
   }
 
-  /** Maps the error code of the service to the key of a text. */
+  /** Maps the error name of our service (invalid, expired, weak, rate, network, other) to the key of a text. */
   function errorKey(code) {
-    var c = String(code || '');
-    if (c.indexOf('INVALID_OOB_CODE') === 0) return 'err_invalid';
-    if (c.indexOf('EXPIRED_OOB_CODE') === 0) return 'err_expired';
-    if (c.indexOf('NETWORK') === 0) return 'err_network';
-    if (c.indexOf('WEAK_PASSWORD') === 0) return 'rules';
-    return 'err_other';
+    switch (String(code || '')) {
+      case 'invalid': return 'err_invalid';
+      case 'expired': return 'err_expired';
+      case 'weak': return 'rules';
+      case 'rate': return 'err_rate';
+      case 'network': return 'err_network';
+      default: return 'err_other';
+    }
   }
 
-  function post(fetchFn, key, method, body) {
-    var url = HOST + method + '?key=' + encodeURIComponent(key);
-    return fetchFn(url, {
+  /** One call to our service: POST api + path with a JSON body; resolves with the answer, rejects with {code: 'invalid' | ...}. */
+  function post(fetchFn, api, path, body) {
+    return fetchFn(String(api).replace(/\/+$/, '') + path, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      referrerPolicy: 'strict-origin', credentials: 'omit', cache: 'no-store'
+      referrerPolicy: 'no-referrer', credentials: 'omit', cache: 'no-store'
     }).then(function (r) {
       return r.json().then(function (j) {
-        if (r.ok) return j;
-        throw { code: (j && j.error && j.error.message) || 'UNKNOWN' };
-      });
-    }, function () { throw { code: 'NETWORK' }; });
+        if (r.ok && j && j.ok) return j;
+        throw { code: (j && j.error) || 'other' };
+      }, function () { throw { code: 'other' }; });
+    }, function () { throw { code: 'network' }; });
   }
 
-  /** env: search, languages, fetch, clearUrl(), document, key. Everything the page needs comes in here, so the logic can be tested. */
+  /** env: search, languages, fetch, clearUrl(), document, api (the address of our service). Everything the page needs comes in here, so the logic can be tested. */
   function start(env) {
     var doc = env.document;
     var params = parseParams(env.search);
@@ -167,15 +175,15 @@
 
     if (!reset && !verify) return showError('err_unsupported');
     if (!params.oobCode) return showError('err_invalid');
-    if (!env.key) return showError('err_other');   // the browser key is not set yet (reset-config.js)
+    if (!env.api) return showError('err_other');   // the address of the service is not set yet (site_settings.json)
 
     if (verify) {
-      return post(env.fetch, env.key, 'update', { oobCode: params.oobCode }).then(function () {
+      return post(env.fetch, env.api, '/v1/verify-email', { oobCode: params.oobCode }).then(function () {
         say(t.done_verify);
       }, function (e) { showError(errorKey(e && e.code)); });
     }
 
-    return post(env.fetch, env.key, 'resetPassword', { oobCode: params.oobCode }).then(function (info) {
+    return post(env.fetch, env.api, '/v1/check', { oobCode: params.oobCode }).then(function (info) {
       var parts = t.for_account.split('%s');
       el('r-for').textContent = parts[0] + (info && info.email ? info.email : '') + (parts[1] || '');
       el('r-msg').hidden = true;
@@ -187,7 +195,7 @@
         if (!passwordIsStrong(pw)) { err.textContent = t.rules; err.hidden = false; return false; }
         if (pw !== pw2) { err.textContent = t.mismatch; err.hidden = false; return false; }
         el('r-btn').disabled = true; el('r-btn').textContent = t.saving;
-        post(env.fetch, env.key, 'resetPassword', { oobCode: params.oobCode, newPassword: pw }).then(function () {
+        post(env.fetch, env.api, '/v1/confirm', { oobCode: params.oobCode, newPassword: pw }).then(function () {
           el('r-form').hidden = true;
           say(t.done_reset);
         }, function (e) {
@@ -212,7 +220,7 @@
       fetch: root.fetch.bind(root),
       clearUrl: function () { try { root.history.replaceState(null, '', root.location.pathname); } catch (e) {} },
       document: root.document,
-      key: root.TEATROO_RESET_KEY
+      api: root.TEATROO_MAIL_API
     });
   }
 })(typeof window !== 'undefined' ? window : globalThis);
